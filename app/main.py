@@ -1,7 +1,7 @@
+from . import telemetry
+telemetry.setup()  # must run before ADK import
 from fastapi import FastAPI
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from . import telemetry
-telemetry.setup()
 from . import agent
 
 app = FastAPI()
@@ -14,5 +14,5 @@ def health():
 
 
 @app.get("/ask")
-def ask(q: str):
-    return agent.run(q)
+async def ask(q: str):
+    return await agent.run(q)

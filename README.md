@@ -1,30 +1,23 @@
-# GenAI agent observability demo (Dynatrace + OpenTelemetry)
+# GenAI agent observability demo: Google ADK + Google GenAI SDK + OpenTelemetry + Dynatrace
 
-Agent (FastAPI) -> OTel SDK -> OTLP/HTTP -> Collector -> Dynatrace. Runs locally, on Cloud Run, or on GKE.
+- Agent: Google ADK `LlmAgent` (Gemini) with a `search_kb` tool, run through ADK `Runner`, served by FastAPI.
+- Google GenAI SDK: used as an async LLM judge (groundedness/relevance) on sampled requests.
+- Telemetry: ADK's built-in OpenTelemetry spans plus custom metrics -> OTLP/HTTP -> Collector -> Dynatrace.
 
-## 1. Local (5 min)
+## Run locally
 ```
-export DT_TENANT=<env-id>  DT_API_TOKEN=<token>
-export OTEL_EXPORTER_OTLP_ENDPOINT=https://$DT_TENANT.live.dynatrace.com/api/v2/otlp
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Api-Token $DT_API_TOKEN"
+export GOOGLE_API_KEY=<gemini key>
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://<env-id>.live.dynatrace.com/api/v2/otlp
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Api-Token <token>"
 export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 pip install -r requirements.txt && uvicorn app.main:app --port 8080
-python loadgen.py          # separate terminal
+python loadgen.py
 ```
-Set GOOGLE_API_KEY to use real Gemini; otherwise a mock LLM runs.
 
-## 2. GKE
-```
-docker build -t REGION-docker.pkg.dev/PROJECT/repo/adk-agent-demo:v1 . && docker push REGION-docker.pkg.dev/PROJECT/repo/adk-agent-demo:v1
-kubectl apply -f k8s/otel-collector.yaml -f k8s/deployment.yaml
-python loadgen.py http://<EXTERNAL-IP>
-```
-Optional: install the Dynatrace Operator (DynaKube) for pod/node views.
+## GKE
+Build and push the image, then `kubectl apply -f k8s/otel-collector.yaml -f k8s/deployment.yaml`.
+ADK also offers `adk deploy gke` as a built-in path.
 
-## 3. Demo flow (10 min)
-1. Architecture slide.
-2. Traces: agent.workflow -> tool.retrieve -> gen_ai.chat.
-3. Dashboard: p95 latency, tokens, tool failure rate, groundedness, hallucination flags.
-4. SLO + alert: groundedness < 0.8 / p95 > 2s.
-5. Break it (raise tool failure rate), show root cause from a trace.
-6. Cloud Run vs GKE slide.
+## Knobs
+TOOL_FAIL_RATE (inject tool failures for the demo), JUDGE_SAMPLE_RATE, MODEL, JUDGE_MODEL.

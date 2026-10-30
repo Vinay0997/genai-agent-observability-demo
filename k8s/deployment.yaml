@@ -2,8 +2,9 @@ apiVersion: v1
 kind: Secret
 metadata: {name: dt-otlp}
 stringData:
-  DT_TENANT: "YOUR_ENV_ID"        # <env-id>.live.dynatrace.com
-  DT_API_TOKEN: "dt0c01.xxx"      # scopes: openTelemetryTrace.ingest, metrics.ingest, logs.ingest
+  DT_TENANT: "YOUR_ENV_ID"
+  DT_API_TOKEN: "dt0c01.xxx"
+  GOOGLE_API_KEY: "YOUR_GEMINI_KEY"   # or use Vertex AI + Workload Identity instead
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -16,13 +17,15 @@ spec:
     spec:
       containers:
       - name: agent
-        image: REGION-docker.pkg.dev/PROJECT/repo/adk-agent-demo:v1
+        image: REGION-docker.pkg.dev/PROJECT/repo/adk-agent-demo:v2
         ports: [{containerPort: 8080}]
+        envFrom: [{secretRef: {name: dt-otlp}}]
         env:
         - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector:4318"}
         - {name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE, value: "delta"}
+        - {name: OTEL_SEMCONV_STABILITY_OPT_IN, value: "gen_ai_latest_experimental"}
         - {name: ENV, value: "gke-demo"}
-        resources: {requests: {cpu: 250m, memory: 256Mi}, limits: {memory: 512Mi}}
+        resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 1Gi}}
         readinessProbe: {httpGet: {path: /healthz, port: 8080}}
 ---
 apiVersion: v1
