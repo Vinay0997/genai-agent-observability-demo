@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from opentelemetry import metrics
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from . import agent
+from . import agent, dt_http
 
+dt_http.install(core)  # optional hybrid: metrics + logs over plain HTTP when DT_HTTP_INGEST=1
 feedback = metrics.get_meter("app").create_counter("agent.feedback")
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>ADK observability demo</title><!--RUM-->
 <style>body{font-family:sans-serif;max-width:720px;margin:2rem auto}input{width:70%;padding:6px}pre{background:#f3f5f7;padding:10px;white-space:pre-wrap}</style></head>
