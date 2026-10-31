@@ -1,5 +1,5 @@
 """Streamlit front end for the same agent. Run from the repo root:  python -m streamlit run app/ui.py
-No uvicorn needed. Telemetry setup, the ADK agent and the live-judge worker are started once per process."""
+Telemetry setup, the ADK agent and the live-judge worker are started once per process."""
 import asyncio, os, sys, threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
