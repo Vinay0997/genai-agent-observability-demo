@@ -1,0 +1,84 @@
+# OTel Collector + agent for GKE. Secret "dt-otlp" is created by deploy.sh (never committed).
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: otel-collector-conf}
+data:
+  config.yaml: |
+    receivers:
+      otlp: {protocols: {http: {endpoint: 0.0.0.0:4318}}}
+    processors:
+      cumulativetodelta: {}
+      batch: {}
+    exporters:
+      otlphttp:
+        endpoint: "https://${env:DT_TENANT}.live.dynatrace.com/api/v2/otlp"
+        headers: {Authorization: "Api-Token ${env:DT_API_TOKEN}"}
+    service:
+      pipelines:
+        traces:  {receivers: [otlp], processors: [batch], exporters: [otlphttp]}
+        metrics: {receivers: [otlp], processors: [cumulativetodelta, batch], exporters: [otlphttp]}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: otel-collector}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: otel-collector}}
+  template:
+    metadata: {labels: {app: otel-collector}}
+    spec:
+      containers:
+      - name: collector
+        image: otel/opentelemetry-collector-contrib:latest
+        args: ["--config=/conf/config.yaml"]
+        envFrom: [{secretRef: {name: dt-otlp}}]
+        ports: [{containerPort: 4318}]
+        volumeMounts: [{name: conf, mountPath: /conf}]
+      volumes: [{name: conf, configMap: {name: otel-collector-conf}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: otel-collector}
+spec:
+  selector: {app: otel-collector}
+  ports: [{port: 4318, targetPort: 4318}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: adk-agent}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: adk-agent}}
+  template:
+    metadata: {labels: {app: adk-agent}}
+    spec:
+      containers:
+      - name: agent
+        image: IMAGE_PLACEHOLDER
+        ports: [{containerPort: 8080}]
+        envFrom: [{secretRef: {name: dt-otlp}}]
+        env:
+        - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector:4318"}
+        - {name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE, value: "delta"}
+        - {name: OTEL_SEMCONV_STABILITY_OPT_IN, value: "gen_ai_latest_experimental"}
+        - {name: ENV, value: "gke"}
+        - {name: PROJECT_ID, value: "PROJECT_ID_VALUE"}
+        resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 1Gi}}
+        readinessProbe: {httpGet: {path: /healthz, port: 8080}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: adk-agent}
+spec:
+  type: LoadBalancer
+  selector: {app: adk-agent}
+  ports: [{port: 80, targetPort: 8080}]
+# OPTIONAL pod/node context: install the Dynatrace Operator, then apply a DynaKube.
+# Use the apiVersion Dynatrace gives you under Deploy > Kubernetes (v1beta3, v1beta4, ...):
+#   apiVersion: dynatrace.com/v1beta3
+#   kind: DynaKube
+#   metadata: {name: dynakube, namespace: dynatrace}
+#   spec:
+#     apiUrl: https://YOUR_ENV_ID.live.dynatrace.com/api
+#     oneAgent: {cloudNativeFullStack: {}}
+#     activeGate: {capabilities: [kubernetes-monitoring, routing]}
