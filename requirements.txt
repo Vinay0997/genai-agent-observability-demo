@@ -2,6 +2,7 @@ google-adk
 google-genai
 fastapi
 uvicorn[standard]
+streamlit
 httpx
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
