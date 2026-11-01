@@ -20,19 +20,19 @@ ground_h = meter.create_histogram("agent.eval.groundedness")
 rel_h = meter.create_histogram("agent.eval.relevance")
 halluc = meter.create_counter("agent.eval.hallucination_flagged")
 
-MODEL = os.getenv("MODEL", "gemini-2.5-flash")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-2.5-flash-lite")  # used when MODEL returns 429/5xx or times out
-ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "20"))  # seconds allowed per model attempt
+MODEL = os.getenv("MODEL", "gemini-3.8-flash")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.5-flash-lite")  # used when MODEL errors (404/429/5xx) or times out
+ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "30"))  # seconds allowed per model attempt
 EXTRACTIVE_FALLBACK = os.getenv("EXTRACTIVE_FALLBACK", "1") == "1"  # if every model fails, answer from the top retrieved passage
 FAIL_RATE = float(os.getenv("TOOL_FAIL_RATE", "0.05"))
-RETRYABLE = {429, 500, 503, 504}
+RETRYABLE = {404, 429, 500, 503, 504}  # 404 = model retired or not available to this key
 APP = "adk_obs_demo"
 INSTRUCTION = "Answer ONLY using passages returned by retrieve_docs. Call it first. If nothing relevant is returned, say you do not know."
 _rec = contextvars.ContextVar("rec", default=None)
 
 
 class ModelUnavailable(Exception):
-    """Every configured model returned a retryable error (429/5xx) or timed out."""
+    """Every configured model returned a retryable error or timed out."""
 
 
 def retrieve_docs(query: str) -> dict:
