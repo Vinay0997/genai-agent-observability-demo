@@ -1,5 +1,5 @@
 """Google ADK agent with a RAG tool, plus the per-request workflow that records metrics and eval scores."""
-import contextvars, os, random, time, uuid
+import asyncio, contextvars, os, random, time, uuid
 from opentelemetry import trace, metrics
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
@@ -21,7 +21,8 @@ rel_h = meter.create_histogram("agent.eval.relevance")
 halluc = meter.create_counter("agent.eval.hallucination_flagged")
 
 MODEL = os.getenv("MODEL", "gemini-2.5-flash")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "")  # used when MODEL returns 429/5xx (e.g. 503 high demand)
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "")  # used when MODEL returns 429/5xx or times out
+ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "40"))  # seconds allowed per model attempt
 FAIL_RATE = float(os.getenv("TOOL_FAIL_RATE", "0.05"))
 RETRYABLE = {429, 500, 503, 504}
 APP = "adk_obs_demo"
@@ -30,7 +31,7 @@ _rec = contextvars.ContextVar("rec", default=None)
 
 
 class ModelUnavailable(Exception):
-    """Every configured model returned a retryable error (429/5xx)."""
+    """Every configured model returned a retryable error (429/5xx) or timed out."""
 
 
 def retrieve_docs(query: str) -> dict:
@@ -91,7 +92,7 @@ async def run(question: str, user_id: str = "demo"):
     rec = {"question": question, "contexts": [], "ids": []}
     _rec.set(rec)
     models = [MODEL] + ([FALLBACK_MODEL] if FALLBACK_MODEL and FALLBACK_MODEL != MODEL else [])
-    t0, answer, ti, to, used, last = time.time(), "", 0, 0, None, None
+    t0, answer, ti, to, used, last, code = time.time(), "", 0, 0, None, None, 0
     with tracer.start_as_current_span("agent.workflow") as sp:
         sc = sp.get_span_context()
         trace_id = format(sc.trace_id, "032x")
@@ -99,19 +100,22 @@ async def run(question: str, user_id: str = "demo"):
             rec["contexts"].clear()
             rec["ids"].clear()
             try:
-                answer, ti, to = await _attempt(m, question, user_id, rec)
+                answer, ti, to = await asyncio.wait_for(_attempt(m, question, user_id, rec), ATTEMPT_TIMEOUT)
                 used = m
                 break
+            except asyncio.TimeoutError as e:
+                last, code = e, 504
             except genai_errors.APIError as e:
                 if e.code not in RETRYABLE:
                     raise
-                last = e
-                llm_err.add(1, {"model": m, "code": e.code})
-                sp.add_event("llm.error", {"model": m, "code": e.code})
+                last, code = e, e.code
+            llm_err.add(1, {"model": m, "code": code})
+            sp.add_event("llm.error", {"model": m, "code": code})
+            core.log("llm_error", trace_id=trace_id, model=m, code=code)
         if used is None:
             workflows.add(1, {"status": "error"})
-            core.log("llm_unavailable", trace_id=trace_id, question=question, models=models, code=last.code if last else 0)
-            raise ModelUnavailable(f"Model unavailable ({last.code if last else 'unknown'}) for: {', '.join(models)}") from last
+            core.log("llm_unavailable", trace_id=trace_id, question=question, models=models, code=code)
+            raise ModelUnavailable(f"Model unavailable ({code}) for: {', '.join(models)}") from last
         sp.set_attribute("llm.model_used", used)
         sp.set_attribute("llm.fallback_used", used != MODEL)
         tok_in.add(ti, {"model": used})
