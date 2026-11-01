@@ -20,8 +20,8 @@ ground_h = meter.create_histogram("agent.eval.groundedness")
 rel_h = meter.create_histogram("agent.eval.relevance")
 halluc = meter.create_counter("agent.eval.hallucination_flagged")
 
-MODEL = os.getenv("MODEL", "gemini-3.8-flash")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.5-flash-lite")  # used when MODEL errors (404/429/5xx) or times out
+MODEL = os.getenv("MODEL", "gemini-3.5-flash-lite")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.8-flash")  # used when MODEL errors (404/429/5xx) or times out
 ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "30"))  # seconds allowed per model attempt
 EXTRACTIVE_FALLBACK = os.getenv("EXTRACTIVE_FALLBACK", "1") == "1"  # if every model fails, answer from the top retrieved passage
 FAIL_RATE = float(os.getenv("TOOL_FAIL_RATE", "0.05"))
