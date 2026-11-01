@@ -3,7 +3,7 @@ core.setup()  # must run before ADK is imported
 import asyncio, html, os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from opentelemetry import metrics
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from . import agent, dt_http
@@ -16,8 +16,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>ADK observabil
 <pre id="out"></pre><div id="fb" style="display:none"><button onclick="fb('up')">Helpful</button> <button onclick="fb('down')">Not helpful</button></div>
 <script>let tid="";
 document.getElementById("go").onclick=async()=>{const q=document.getElementById("q").value,o=document.getElementById("out");o.textContent="...";
-const r=await(await fetch("ask?q="+encodeURIComponent(q))).json();tid=r.trace_id;
-o.textContent=r.answer+"\\n\\ngroundedness="+r.groundedness+" latency_ms="+r.latency_ms+" trace="+r.trace_id;document.getElementById("fb").style.display="block";};
+const r=await(await fetch("ask?q="+encodeURIComponent(q))).json();tid=r.trace_id||"";
+o.textContent=(r.answer||r.detail||"error")+"\\n\\ngroundedness="+r.groundedness+" latency_ms="+r.latency_ms+" model="+r.model+" trace="+r.trace_id;document.getElementById("fb").style.display="block";};
 async function fb(v){await fetch("feedback?trace_id="+tid+"&rating="+v,{method:"POST"});}</script></body></html>"""
 
 
@@ -46,7 +46,10 @@ def index():
 
 @app.get("/ask")
 async def ask(q: str):
-    return await agent.run(q)
+    try:
+        return await agent.run(q)
+    except agent.ModelUnavailable as e:
+        return JSONResponse({"error": "model_unavailable", "detail": str(e)}, status_code=503, headers={"Retry-After": "10"})
 
 
 @app.post("/feedback")
