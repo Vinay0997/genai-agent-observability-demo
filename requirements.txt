@@ -1,5 +1,7 @@
 google-adk
 google-genai
-streamlit
+fastapi
+uvicorn[standard]
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi

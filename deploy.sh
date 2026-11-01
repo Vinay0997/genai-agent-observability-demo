@@ -13,14 +13,13 @@ if [ "$TARGET" = cloudrun ]; then
     gcloud secrets add-iam-policy-binding "$s" --member "serviceAccount:$SA" --role roles/secretmanager.secretAccessor --project "$PROJECT" >/dev/null
   done
   # CPU always allocated so the OTel exporter and background judge keep running between requests.
-  # One instance + session affinity + long timeout keep Streamlit websockets stable for the demo.
   gcloud run deploy "$SERVICE" --source . --project "$PROJECT" --region "$REGION" \
-    --no-cpu-throttling --min-instances=1 --max-instances=1 --session-affinity --timeout=3600 --memory=1Gi --no-allow-unauthenticated \
+    --no-cpu-throttling --min-instances=1 --memory=1Gi --no-allow-unauthenticated \
     --set-env-vars "OTEL_EXPORTER_OTLP_ENDPOINT=https://${DT_TENANT}.live.dynatrace.com/api/v2/otlp,OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta,OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental,ENV=cloudrun,PROJECT_ID=${PROJECT}" \
     --update-secrets "GOOGLE_API_KEY=gemini-key:latest,OTEL_EXPORTER_OTLP_HEADERS=dt-otlp-headers:latest"
-  echo "Open the UI: gcloud run services proxy $SERVICE --region $REGION --project $PROJECT --port 8080   (then Web Preview on port 8080)"
+  echo "Deployed. See README 'Test the Cloud Run service' for the curl commands."
 else
-  CLUSTER="${CLUSTER:-adk-demo}"; REPO="${REPO:-adk-demo}"; IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/adk-agent-demo:v5"
+  CLUSTER="${CLUSTER:-adk-demo}"; REPO="${REPO:-adk-demo}"; IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/adk-agent-demo:v6"
   gcloud artifacts repositories create "$REPO" --repository-format=docker --location "$REGION" --project "$PROJECT" 2>/dev/null || true
   gcloud container clusters describe "$CLUSTER" --region "$REGION" --project "$PROJECT" >/dev/null 2>&1 || \
     gcloud container clusters create-auto "$CLUSTER" --region "$REGION" --project "$PROJECT"
