@@ -9,7 +9,8 @@ meter = metrics.get_meter("app")
 
 def setup(service="adk-agent-demo"):
     """Call BEFORE importing ADK so its built-in spans use these providers.
-    Endpoint/headers come from OTEL_EXPORTER_OTLP_*; Dynatrace needs delta metrics temporality."""
+    Endpoint/headers come from OTEL_EXPORTER_OTLP_*; Dynatrace needs delta metrics temporality.
+    With no endpoint configured (local dev) no exporter is created, so there is no localhost:4318 noise."""
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -20,10 +21,13 @@ def setup(service="adk-agent-demo"):
     res = Resource.create({"service.name": service, "deployment.environment": os.getenv("ENV", "demo"),
                            "k8s.pod.name": os.getenv("HOSTNAME", "local")})
     tp = TracerProvider(resource=res)
-    tp.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+        tp.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(tp)
-    metrics.set_meter_provider(MeterProvider(resource=res, metric_readers=[
-        PeriodicExportingMetricReader(OTLPMetricExporter(), export_interval_millis=15000)]))
+    readers = []
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+        readers = [PeriodicExportingMetricReader(OTLPMetricExporter(), export_interval_millis=15000)]
+    metrics.set_meter_provider(MeterProvider(resource=res, metric_readers=readers))
 
 
 # ---------- RAG (small in-memory TF-IDF index standing in for a vector store) ----------
@@ -75,7 +79,7 @@ def groundedness_proxy(answer, contexts):
 
 
 def relevance_proxy(question, answer):
-    q = {t for t in _words(question) if len(t) > 3}
+    q = set(_tok(question))  # content words only, so short terms like 'slo' count
     return len(q & _words(answer)) / len(q) if q else 0.0
 
 
@@ -97,7 +101,7 @@ async def llm_judge(question, answer, contexts):
     """Google GenAI SDK as LLM judge; always run off the request path."""
     from google import genai
     r = await genai.Client().aio.models.generate_content(
-        model=os.getenv("JUDGE_MODEL", "gemini-2.5-flash"),
+        model=os.getenv("JUDGE_MODEL", "gemini-3.5-flash-lite"),
         contents=JUDGE_PROMPT.format(ctx=" | ".join(contexts), q=question, a=answer),
         config={"response_mime_type": "application/json"})
     return json.loads(r.text)

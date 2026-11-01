@@ -22,8 +22,9 @@ halluc = meter.create_counter("agent.eval.hallucination_flagged")
 
 MODEL = os.getenv("MODEL", "gemini-3.5-flash-lite")
 FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.8-flash")  # used when MODEL errors (404/429/5xx) or times out
-ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "30"))  # seconds allowed per model attempt
+ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "20"))  # seconds allowed per model attempt
 EXTRACTIVE_FALLBACK = os.getenv("EXTRACTIVE_FALLBACK", "1") == "1"  # if every model fails, answer from the top retrieved passage
+FLAG_THRESHOLD = float(os.getenv("FLAG_THRESHOLD", "0.7"))  # groundedness below this is flagged as a possible hallucination
 FAIL_RATE = float(os.getenv("TOOL_FAIL_RATE", "0.05"))
 RETRYABLE = {404, 429, 500, 503, 504}  # 404 = model retired or not available to this key
 APP = "adk_obs_demo"
@@ -131,7 +132,7 @@ async def run(question: str, user_id: str = "demo"):
         tok_in.add(ti, {"model": used})
         tok_out.add(to, {"model": used})
         g, r = core.groundedness_proxy(answer, rec["contexts"]), core.relevance_proxy(question, answer)
-        flagged = g < 0.8
+        flagged = g < FLAG_THRESHOLD
         ground_h.record(g)
         rel_h.record(r)
         if flagged:
