@@ -21,8 +21,9 @@ rel_h = meter.create_histogram("agent.eval.relevance")
 halluc = meter.create_counter("agent.eval.hallucination_flagged")
 
 MODEL = os.getenv("MODEL", "gemini-2.5-flash")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "")  # used when MODEL returns 429/5xx or times out
-ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "40"))  # seconds allowed per model attempt
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-2.5-flash-lite")  # used when MODEL returns 429/5xx or times out
+ATTEMPT_TIMEOUT = float(os.getenv("ATTEMPT_TIMEOUT", "20"))  # seconds allowed per model attempt
+EXTRACTIVE_FALLBACK = os.getenv("EXTRACTIVE_FALLBACK", "1") == "1"  # if every model fails, answer from the top retrieved passage
 FAIL_RATE = float(os.getenv("TOOL_FAIL_RATE", "0.05"))
 RETRYABLE = {429, 500, 503, 504}
 APP = "adk_obs_demo"
@@ -92,7 +93,7 @@ async def run(question: str, user_id: str = "demo"):
     rec = {"question": question, "contexts": [], "ids": []}
     _rec.set(rec)
     models = [MODEL] + ([FALLBACK_MODEL] if FALLBACK_MODEL and FALLBACK_MODEL != MODEL else [])
-    t0, answer, ti, to, used, last, code = time.time(), "", 0, 0, None, None, 0
+    t0, answer, ti, to, used, last, code, degraded = time.time(), "", 0, 0, None, None, 0, False
     with tracer.start_as_current_span("agent.workflow") as sp:
         sc = sp.get_span_context()
         trace_id = format(sc.trace_id, "032x")
@@ -113,11 +114,20 @@ async def run(question: str, user_id: str = "demo"):
             sp.add_event("llm.error", {"model": m, "code": code})
             core.log("llm_error", trace_id=trace_id, model=m, code=code)
         if used is None:
-            workflows.add(1, {"status": "error"})
             core.log("llm_unavailable", trace_id=trace_id, question=question, models=models, code=code)
-            raise ModelUnavailable(f"Model unavailable ({code}) for: {', '.join(models)}") from last
+            if not EXTRACTIVE_FALLBACK:
+                workflows.add(1, {"status": "error"})
+                raise ModelUnavailable(f"Model unavailable ({code}) for: {', '.join(models)}") from last
+            rec["contexts"].clear()
+            rec["ids"].clear()
+            hits = core.search(question)
+            rec["contexts"] += [h["text"] for h in hits]
+            rec["ids"] += [h["id"] for h in hits]
+            answer = hits[0]["text"] if hits else "I do not know."
+            used, ti, to, degraded = "extractive-fallback", 0, 0, True
         sp.set_attribute("llm.model_used", used)
         sp.set_attribute("llm.fallback_used", used != MODEL)
+        sp.set_attribute("llm.degraded", degraded)
         tok_in.add(ti, {"model": used})
         tok_out.add(to, {"model": used})
         g, r = core.groundedness_proxy(answer, rec["contexts"]), core.relevance_proxy(question, answer)
@@ -130,9 +140,10 @@ async def run(question: str, user_id: str = "demo"):
             sp.set_attribute(k, v)
         ms = (time.time() - t0) * 1000
         wf_latency.record(ms)
-        workflows.add(1, {"status": "success" if rec["contexts"] else "degraded"})
+        workflows.add(1, {"status": "degraded" if degraded or not rec["contexts"] else "success"})
     rec.update(answer=answer, trace_id=trace_id, span_ctx=sc)
     core.log("request", trace_id=trace_id, question=question, groundedness=round(g, 2), flagged=flagged, latency_ms=round(ms), docs=rec["ids"], model=used)
-    core.maybe_enqueue(rec)
+    if not degraded:
+        core.maybe_enqueue(rec)
     return {"answer": answer, "trace_id": trace_id, "groundedness": round(g, 2), "relevance": round(r, 2),
-            "flagged": flagged, "latency_ms": round(ms), "sources": rec["ids"], "model": used}
+            "flagged": flagged, "latency_ms": round(ms), "sources": rec["ids"], "model": used, "degraded": degraded}
