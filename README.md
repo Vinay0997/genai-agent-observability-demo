@@ -1,5 +1,7 @@
 # GenAI agent observability: Google ADK + Google GenAI SDK + OpenTelemetry + Dynatrace
 
+**Live demo:** https://genai-agent-observability-demo-knmgbkuno8snohhdgvfcbs.streamlit.app/ (free tier: may take a moment to wake up)
+
 A Google ADK `LlmAgent` (Gemini) with a RAG tool, a Streamlit front end, and OpenTelemetry traces, metrics and logs exported to Dynatrace.
 The same agent can also run as a FastAPI service on Cloud Run or GKE (see the end of this file).
 
