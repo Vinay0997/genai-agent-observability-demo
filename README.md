@@ -40,5 +40,5 @@ and metrics temporality to `delta`. The token needs scopes to ingest OpenTelemet
 Knobs: MODEL, FALLBACK_MODEL, JUDGE_MODEL, ATTEMPT_TIMEOUT, EXTRACTIVE_FALLBACK, FLAG_THRESHOLD, TOOL_FAIL_RATE, JUDGE_SAMPLE_RATE, JUDGE_HALLUCINATION_THRESHOLD.
 Limits: online groundedness is a lexical proxy; retrieval is an in-memory TF-IDF stand-in for a vector store; SLO values are examples.
 
-## Optional: Cloud Run / GKE
+## Cloud Run / GKE
 `./deploy.sh cloudrun` (or `gke`) deploys `app/main.py` (FastAPI: `/ask`, `/feedback`, `/healthz`) from the Dockerfile; see `deploy.sh` for the variables it needs (`PROJECT`, `GOOGLE_API_KEY`, `DT_TENANT`, `DT_API_TOKEN`).
