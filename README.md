@@ -24,12 +24,6 @@ python -m streamlit run app/ui.py
 ```
 With no OTLP endpoint set, no telemetry is exported (no errors either). Check retrieval quality without any key: `python -m eval.run_golden --retrieval-only`.
 
-## Deploy on Streamlit Community Cloud (free)
-1. Sign in at share.streamlit.io with GitHub and authorize access to this repository (private repos need that authorization).
-2. Create app: repository `Vinay0997/genai-agent-observability-demo`, branch `main`, main file `app/ui.py`, Python 3.12.
-3. Paste your values into App settings > Secrets, using `.streamlit/secrets.toml.example` as the template. Top-level secrets are also exposed as environment variables, which is how the app reads them.
-4. Deploy. Never commit real keys or tokens.
-
 ## Telemetry to Dynatrace
 Set `OTEL_EXPORTER_OTLP_ENDPOINT` to `https://<env-id>.live.dynatrace.com/api/v2/otlp`, `OTEL_EXPORTER_OTLP_HEADERS` to `Authorization=Api-Token <token>`,
 and metrics temporality to `delta`. The token needs scopes to ingest OpenTelemetry traces, metrics and logs.
