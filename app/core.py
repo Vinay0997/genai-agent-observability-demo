@@ -39,6 +39,15 @@ DOCS = {
     "adk-tracing": "Google ADK emits OpenTelemetry spans for invoke_agent, generate_content and execute_tool following GenAI semantic conventions. Set global providers before importing ADK.",
     "genai-evaluation": "Groundedness measures whether claims in an answer are supported by retrieved context. Retrieval quality is measured with hit rate and MRR against a golden set. Hallucination is flagged when groundedness is low.",
     "rum": "Dynatrace Real User Monitoring uses a JavaScript tag in the page head to capture page loads, user actions and errors, and correlates them with backend traces.",
+    # Synthetic documents for a fictional insurer (no real customer data).
+    "nw-claim-submission": "Northwind Health members can submit a claim within 90 days of the date of service, through the member portal or by mail. Claims with complete paperwork are usually processed within 10 business days.",
+    "nw-claim-appeal": "A denied Northwind claim can be appealed within 180 days. A different adjuster reviews the first-level appeal, and the member receives a written decision within 30 days.",
+    "nw-prior-authorization": "Northwind requires prior authorization for planned surgeries, advanced imaging such as MRI, and specialty drugs. Standard requests are answered in 5 business days and urgent requests within 72 hours.",
+    "nw-network-providers": "Northwind in-network providers bill the contracted rate. Out-of-network care costs more, because the member pays the difference between the billed amount and the plan allowance.",
+    "nw-member-privacy": "Northwind encrypts member health information at rest and in transit. Staff may view only the records needed for their task, and every record view is logged for audit.",
+    "nw-support-hours": "Northwind member support is open Monday to Friday, 8 am to 8 pm Eastern. After hours, the portal chat assistant answers common questions and passes complex cases to the next business day.",
+    "nw-pharmacy": "Northwind covers generic drugs at the lowest copay tier. Brand drugs cost more, and a 90-day mail-order supply costs the same as two 30-day pharmacy fills.",
+    "nw-telehealth": "Northwind members can have video visits with in-network doctors for a flat 10 dollar copay. Telehealth covers routine illness, prescription refills and mental health counseling.",
 }
 STOP = set("the a an of to in on for and or is are be by with at as it that this from how what does do can".split())
 _tok = lambda s: [t for t in re.findall(r"[a-z0-9]+", s.lower()) if t not in STOP]
